@@ -1,0 +1,42 @@
+version: '3.3'
+
+services:
+  journal-exporter:
+    image: nicolaka/journalbeat:latest
+    environment:
+      LOGSTASH_HOST: ${LOGSTASH_HOST}:5044
+    networks:
+      - exporter
+    volumes:
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    deploy:
+      mode: global
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  mta-exporter:
+    image: ahromis/logstash:latest
+    environment:
+     LOGSTASH_HOST: ${LOGSTASH_HOST}:5044
+    hostname: logstash
+    networks:
+      - exporter
+    deploy:
+     mode: global
+     update_config:
+       parallelism: 2
+       delay: 10s
+     restart_policy:
+       condition: on-failure
+    volumes:
+      - logstash-sincedb:/usr/share/logstash/data
+      - /var/lib/docker/volumes:/log/volumes
+
+volumes:
+  logstash-sincedb:
+networks:
+  exporter:

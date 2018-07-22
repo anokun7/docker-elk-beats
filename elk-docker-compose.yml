@@ -1,0 +1,62 @@
+version: "3.3"
+
+services:
+  elasticsearch:
+    command: elasticsearch -Enetwork.host=0.0.0.0 -Ediscovery.zen.ping.unicast.hosts=elasticsearch
+    environment:
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    image: elasticsearch:5
+    volumes:
+      - esdata:/usr/share/elasticsearch/data:rw
+    networks:
+      - elk
+    healthcheck:
+      test: curl -s http://localhost:9200/_cluster/health | egrep 'yellow|green'
+      interval: 30s
+      retries: 3
+
+  kibana:
+    image: kibana:latest
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    networks:
+      - elk
+    healthcheck:
+      test: wget -qO- http://localhost:5601 > /dev/null
+      interval: 30s
+      retries: 3
+
+  logstash:
+    command: sh -c "logstash -e 'input { syslog  { type => syslog port => 10514   } beats { port => 5044 } } output { stdout { codec => line } elasticsearch { hosts => [ \"elasticsearch\" ] } }'"
+    image: logstash:latest
+    ports:
+      - "10514:10514/tcp"
+      - "10514:10514/udp"
+      - "12201:12201/udp"
+      - "5044:5044/tcp"
+    networks:
+      - elk
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:6.3.1
+    volumes:
+     - /var/tmp/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    deploy:
+     mode: global
+     update_config:
+       parallelism: 2
+       delay: 10s
+     restart_policy:
+       condition: on-failure
+    networks:
+       - elk
+
+volumes:
+  esdata:
+    driver: local
+
+networks:
+  elk:
+
