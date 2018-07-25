@@ -1,13 +1,39 @@
 version: "3.3"
 
 services:
+  web:
+    image: dockersuccess/webserver:latest
+    environment:
+      app_url: kibana:5601
+    deploy:
+      replicas: 2
+    ports:
+      - "2000:2015"
+    networks:
+      - frontend
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:6.3.1
+#   ports:
+#     - "5601:5601"
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    networks:
+      - elk
+      - frontend
+    healthcheck:
+      test: echo ">" /dev/tcp/0.0.0.0:5601 || exit 1
+      interval: 30s
+      retries: 3
+
   elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.3.1
     command: elasticsearch -Enetwork.host=0.0.0.0 -Ediscovery.zen.ping.unicast.hosts=elasticsearch
     environment:
       ES_JAVA_OPTS: -Xms1g -Xmx1g
-    image: elasticsearch:5
     volumes:
-      - esdata:/usr/share/elasticsearch/data:rw
+      - /tmp/esdata:/usr/share/elasticsearch/data:rw
+    user: root
     networks:
       - elk
     healthcheck:
@@ -15,22 +41,9 @@ services:
       interval: 30s
       retries: 3
 
-  kibana:
-    image: kibana:latest
-    ports:
-      - "5601:5601"
-    environment:
-      ELASTICSEARCH_URL: http://elasticsearch:9200
-    networks:
-      - elk
-    healthcheck:
-      test: wget -qO- http://localhost:5601 > /dev/null
-      interval: 30s
-      retries: 3
-
   logstash:
+    image: docker.elastic.co/logstash/logstash:6.3.1
     command: sh -c "logstash -e 'input { syslog  { type => syslog port => 10514   } beats { port => 5044 } } output { stdout { codec => line } elasticsearch { hosts => [ \"elasticsearch\" ] } }'"
-    image: logstash:latest
     ports:
       - "10514:10514/tcp"
       - "10514:10514/udp"
@@ -53,10 +66,10 @@ services:
     networks:
        - elk
 
-volumes:
-  esdata:
-    driver: local
+#volumes:
+# esdata:
+#   driver: local
 
 networks:
   elk:
-
+  frontend:
